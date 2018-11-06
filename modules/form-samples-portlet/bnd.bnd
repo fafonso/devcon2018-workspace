@@ -1,0 +1,4 @@
+Bundle-Name: form-samples-portlet
+Bundle-SymbolicName: form.samples.portlet
+Bundle-Version: 1.0.0
+Export-Package: form.samples.portlet.constants
