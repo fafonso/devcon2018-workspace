@@ -1,0 +1,212 @@
+import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
+import { ThemeProvider } from 'styled-components';
+import ChatBot from 'react-simple-chatbot';
+import PropTypes from 'prop-types';
+
+const {getFormEntriesByUserURL, getFormDefinitionURL, portletNamespace, saveFormEntryURL} = window.chatBotConstants;
+
+const customClient = {
+	botAvatar: 'https://i.imgur.com/rTo045S.png',
+	title: 'Forms Chatbot'
+}
+
+const theme = {
+	background: '#F5F8FB',
+	fontFamily: 'Helvetica Neue',
+	headerBgColor: '#105566',
+	headerFontColor: '#FFF',
+	headerFontSize: '16px',
+	botBubbleColor: '#358d98',
+	botFontColor: '#FFF !important',
+	userBubbleColor: '#FFF !important',
+	userFontColor: '#4A4A4A',
+};
+
+class List extends Component {
+	constructor(props) {
+		super(props);
+
+		this.state = {
+			list: []
+		};
+	}
+
+	componentWillMount() {
+		this.getFormEntriesByUserURL();
+	}
+
+	getFormEntriesByUserURL() {
+		fetch(getFormEntriesByUserURL).then(response => {
+			response.json().then(result => {
+				this.setState({list: result});
+			})
+		}).catch(error => console.log(error));
+	}
+
+	render() {
+		const {list} = this.state;
+
+		return (
+			<div style={{ width: '100%' }}>
+				<h5>Protocolo das denúncias</h5>
+				<ul style={{
+					margin: 0,
+					padding: 0
+				}}>
+					{list.map(({id, createDate}, index) => (
+						<li style={{
+							listStyle: 'none',
+							borderBottom: '1px solid #e3e3e3',
+							marginTop: '0.5rem',
+							paddingBottom: '0.5rem',
+						}} key={index}>
+							<small>{createDate}</small>
+							<div>{id}</div>
+						</li>
+					))}
+				</ul>
+			</div>
+		);
+	}
+}
+
+List.propTypes = {
+	steps: PropTypes.array,
+};
+
+List.defaultProps = {
+	steps: undefined,
+};
+
+class App extends Component {
+	constructor(props) {
+		super(props);
+
+		this.state = {
+			steps: [],
+			opened: true
+		}
+	}
+
+	componentWillMount() {
+		this.getFormDefinition();
+	}
+
+	componentDidMount() {
+		this.handleEnd = this.handleEnd.bind(this);
+		this.toggle = this.toggle.bind(this);
+	}
+
+	getFormDefinition() {
+		fetch(getFormDefinitionURL).then(response => {
+			response.json().then(result => {
+				console.log(result, 'getFormDefinitionURL');
+
+				let mapper = [];
+
+				const date = new Date();
+
+				mapper.push(
+					{
+						id: 'hello',
+						message: 'Let\'s start filling a demo form.',
+						trigger: 'create'
+					},
+					{
+						id: 'update',
+						message: 'Can I submit your answers?',
+						trigger: 'update-question'
+					},
+					{
+						id: 'update-question',
+						options: [
+							{ value: 'yes', label: 'yes', trigger: 'thank-you' },
+							{ value: 'no', label: 'no', trigger: 'thank-you' },
+						]
+					},
+					{
+						id: 'thank-you',
+						message: 'Thank you!',
+						end: true
+					}
+				)
+
+				const items = result.map((item, index, arr) => {
+					if (index === 0) {
+						return {
+							id: 'create',
+							message: item.message,
+							trigger: item.trigger
+						}
+					}
+
+					if (index === arr.length - 1) {
+						return {
+							id: item.id,
+							user: true,
+							trigger: 'update'
+						}
+					}
+
+					return item;
+				});
+
+				console.log('items', items);
+
+				mapper.push(...items);
+
+				this.setState({steps: mapper});
+			})
+		}).catch(error => console.log(error));
+	}
+
+	handleEnd({renderedSteps, steps, values}) {
+		const answers = renderedSteps.map(({id, value}) => {
+			return {
+				id,
+				value
+			}
+		});
+
+		fetch(saveFormEntryURL, {
+			method: 'POST',
+			body: JSON.stringify({answers}),
+			headers:{
+				'Content-Type': 'application/json'
+			}
+		}).then(res => res.json())
+		.then(response => console.log('Success:', JSON.stringify(response)))
+		.catch(error => console.error('Error:', error));
+	}
+
+	toggle({opened}) {
+		this.setState({opened})
+	}
+
+	render() {
+		const {steps, opened} = this.state;
+		const {botAvatar} = customClient;
+
+		if (steps.length === 0) return <div/>;
+
+		return (
+			<ThemeProvider theme={theme}>
+				<ChatBot
+					userDelay={500}
+					opened={opened}
+					handleEnd={this.handleEnd}
+					floating
+					steps={steps}
+					botAvatar={botAvatar}
+					toggleFloating={this.toggle}
+					headerTitle={customClient.title}
+				/>
+			</ThemeProvider>
+		);
+	}
+}
+
+export default function(elementId) {
+	ReactDOM.render(<App />, document.getElementById(elementId));
+}
